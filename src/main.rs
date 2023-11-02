@@ -8,9 +8,11 @@ pub mod clash;
 pub mod formatter;
 pub mod outputstyle;
 pub mod solution;
+pub mod programming_language;
 
 use clash::Clash;
 use outputstyle::OutputStyle;
+use programming_language::ProgrammingLanguage;
 
 #[derive(Clone)]
 pub enum OutputStyleOption {
@@ -98,6 +100,18 @@ fn cli() -> clap::Command {
                 )
         )
         .subcommand(
+            Command::new("generate-stub")
+                .about("Generate input handling code for a given language")
+                .arg(arg!(<PROGRAMMING_LANGUAGE> ... "programming language of the solution stub"))
+                .after_help(
+                    "Prints boilerplate code for the input of the current clash.\
+                    \nIntended to be piped to a file.\
+                    \nExamples:\
+                    \n  $ clash generate-stub ruby > sol.rb\
+                    \n  $ clash generate-stub bash > sol.sh"
+                )
+        )
+        .subcommand(
             Command::new("generate-shell-completion")
                 .about("Generate shell completion")
                 .arg(arg!(<SHELL>).value_parser(value_parser!(clap_complete::Shell)))
@@ -150,6 +164,13 @@ impl App {
     fn handle_from_args(&self, args: &ArgMatches) -> Result<PublicHandle> {
         match args.get_one::<String>("PUBLIC_HANDLE") {
             Some(s) => PublicHandle::new(s),
+            None => Err(anyhow!("No clash handle given")),
+        }
+    }
+
+    fn programming_language_from_args(&self, args: &ArgMatches) -> Result<ProgrammingLanguage> {
+        match args.get_one::<String>("PROGRAMMING_LANGUAGE") {
+            Some(s) => Ok(ProgrammingLanguage::from(s.to_owned())),
             None => Err(anyhow!("No clash handle given")),
         }
     }
@@ -328,6 +349,15 @@ impl App {
         }
     }
 
+
+
+    fn generate_stub(&self, args: &ArgMatches) -> Result<()> {
+        let language = self.programming_language_from_args(args);
+        println!("{:?}", language);
+
+        Ok(())
+    }
+
     fn generate_completions(&self, args: &ArgMatches) -> Result<()> {
         let generator = args
             .get_one::<clap_complete::Shell>("SHELL")
@@ -354,6 +384,7 @@ fn main() -> Result<()> {
         Some(("status", args)) => app.status(args),
         Some(("run", args)) => app.run(args),
         Some(("fetch", args)) => app.fetch(args),
+        Some(("generate-stub", args)) => app.generate_stub(args),
         Some(("generate-shell-completion", args)) => app.generate_completions(args),
         _ => Err(anyhow!("unimplemented subcommand"))
     }
