@@ -1,6 +1,7 @@
 use tera::{Tera, Context};
+use tera_text_filters::{snake_case, camel_case, mixed_case};
 
-use crate::programming_language::ProgrammingLanguage;
+use crate::programming_language::{ProgrammingLanguage, VariableNameFormat};
 use super::parser::{Cmd, Stub, VariableCommand};
 
 mod types;
@@ -19,8 +20,15 @@ struct Renderer {
 
 impl Renderer {
     fn new(lang: ProgrammingLanguage, stub: Stub) -> Self {
-        let tera = Tera::new(&lang.template_glob())
+        let mut tera = Tera::new(&lang.template_glob())
             .expect("There are no templates for this language");
+        let case_fn = match lang.variable_format {
+            // camel_case types don't match tera-text-filters conventions. To fix.
+            VariableNameFormat::SnakeCase => snake_case,
+            VariableNameFormat::CamelCase => mixed_case,
+            VariableNameFormat::PascalCase => camel_case,
+        };
+        tera.register_filter("case", case_fn);
         Self { lang, tera, stub }
     }
 

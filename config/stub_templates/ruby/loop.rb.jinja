@@ -1,5 +1,5 @@
 
-{{ count }}.times do
+{{ count | case }}.times do
 {%- for line in inner %}
   {{line}}{% endfor %}
 end
