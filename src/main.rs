@@ -223,6 +223,7 @@ impl App {
 
         match lang {
             "ruby" => Ok(String::from("ruby")),
+            "rust" => Ok(String::from("rust")),
             other => Err(anyhow!("Unsupported language: {}", other)),
         }
     }
