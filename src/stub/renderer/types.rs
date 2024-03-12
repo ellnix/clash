@@ -1,7 +1,8 @@
 use serde::Serialize;
 
 use super::language::VariableNameFormat;
-use crate::stub::parser::{types::VariableCommand, LengthType};
+use crate::stub::parser::types::VariableCommand;
+use crate::stub::parser::LengthType;
 
 #[derive(Debug, Clone, Serialize, Hash, PartialEq, Eq)]
 pub enum VariableType {
@@ -31,13 +32,26 @@ impl ReadData {
             VC::Float { name } => (name, VT::Float, None, None),
             VC::Long { name } => (name, VT::Long, None, None),
             VC::Bool { name } => (name, VT::Bool, None, None),
-            VC::Word { name, max_length, length_type } | VC::String { name, max_length, length_type } =>  {
-                let length = match length_type  {
+            VC::Word {
+                name,
+                max_length,
+                length_type,
+            }
+            | VC::String {
+                name,
+                max_length,
+                length_type,
+            } => {
+                let length = match length_type {
                     LengthType::Variable => name_format.convert(max_length),
-                    LengthType::Number => max_length.clone()
+                    LengthType::Number => max_length.clone(),
                 };
 
-                let var_type = if let VC::Word { .. } = value { VT::Word } else { VT::String };
+                let var_type = if let VC::Word { .. } = value {
+                    VT::Word
+                } else {
+                    VT::String
+                };
 
                 (name, var_type, Some(length), Some(length_type.clone()))
             }

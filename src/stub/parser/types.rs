@@ -69,12 +69,28 @@ impl<'a> From<&'a str> for LengthType {
 
 #[derive(Debug, Clone, Serialize)]
 pub enum VariableCommand {
-    Int { name: String },
-    Float { name: String },
-    Long { name: String },
-    Bool { name: String },
-    Word { name: String, max_length: String, length_type: LengthType },
-    String { name: String, max_length: String, length_type: LengthType },
+    Int {
+        name: String,
+    },
+    Float {
+        name: String,
+    },
+    Long {
+        name: String,
+    },
+    Bool {
+        name: String,
+    },
+    Word {
+        name: String,
+        max_length: String,
+        length_type: LengthType,
+    },
+    String {
+        name: String,
+        max_length: String,
+        length_type: LengthType,
+    },
 }
 
 #[derive(Serialize, Clone, Debug)]

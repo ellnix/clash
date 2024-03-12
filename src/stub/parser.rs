@@ -1,7 +1,7 @@
 use regex::Regex;
 
 pub mod types;
-pub use types::{Cmd, InputComment, JoinTerm, JoinTermType, Stub, VariableCommand, LengthType};
+pub use types::{Cmd, InputComment, JoinTerm, JoinTermType, LengthType, Stub, VariableCommand};
 
 pub fn parse_generator_stub(generator: String) -> Stub {
     let generator = generator.replace("\n", " \n ").replace("\n  \n", "\n \n");
@@ -141,11 +141,13 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
                 match new_type {
                     "word" => VariableCommand::Word {
                         name: identifier,
-                        max_length, length_type,
+                        max_length,
+                        length_type,
                     },
                     "string" => VariableCommand::String {
                         name: identifier,
-                        max_length, length_type,
+                        max_length,
+                        length_type,
                     },
                     _ => panic!("Unexpected error"),
                 }
