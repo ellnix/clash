@@ -14,6 +14,11 @@ install:
 test:
     cargo test
 
+# Test the stub generator with a random clash
+test-stub:
+    cargo run -- next
+    cargo run -- generate-stub "ruby"
+
 # Run painting tests
 test-painting:
     cargo test --quiet painting -- --nocapture --test-threads=1
