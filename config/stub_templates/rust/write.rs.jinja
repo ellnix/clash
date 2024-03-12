@@ -1,6 +1,6 @@
-{%- if debug_mode -%}
+{% if debug_mode -%}
 # WRITE
-{% endif -%}
+{%- endif -%}
 
 {% for line in messages %}
 println!("{{line}}");
