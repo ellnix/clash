@@ -14,11 +14,6 @@ install:
 test:
     cargo test
 
-# Test the stub generator with a random clash
-test-stub:
-    cargo run -- next
-    cargo run -- generate-stub "ruby"
-
 # Run painting tests
 test-painting:
     cargo test --quiet painting -- --nocapture --test-threads=1
@@ -54,3 +49,28 @@ check-nested-self:
 # Check not matching tags
 check-not-matching:
     cargo run --quiet -- show 7040402a6fe461068f5cf5296607c184d043a | less -R
+
+###################
+# HERE BE DRAGONS #
+###################
+launch:
+    cargo run -- next
+    cargo run -- generate-stub "ruby" > tmp.rb
+    subl tmp.rb
+    cargo run -- show
+
+go:
+    ls *.rb | entr cargo run -- run --command "ruby tmp.rb"
+
+run:
+    cargo run -- run --command "ruby tmp.rb"
+
+# Test the stub generator with a random clash in ruby
+test-stub-rb:
+    cargo run -- next
+    cargo run -- generate-stub "ruby"
+
+# Test the stub generator with a random clash in rust
+test-stub-rs:
+    cargo run -- next
+    cargo run -- generate-stub "rust"
