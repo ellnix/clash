@@ -128,7 +128,9 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
         // https://www.codingame.com/contribute/view/85057be610343f35a80eb2cd8978156af5385
         let length_regex = Regex::new(r"(word|string)\((\d+)\)").unwrap();
         let length_captures = length_regex.captures(var_type);
-        match var_type {
+
+        // Trim because the stub generator may contain sneaky newlines
+        match var_type.trim_end() {
             "int" => VariableCommand::Int { name: identifier },
             "float" => VariableCommand::Float { name: identifier },
             "long" => VariableCommand::Long { name: identifier },
