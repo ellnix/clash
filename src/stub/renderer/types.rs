@@ -37,7 +37,9 @@ impl ReadData {
                     LengthType::Number => max_length.clone()
                 };
 
-                (name, VT::Word, Some(length), Some(length_type.clone()))
+                let var_type = if let VC::Word { .. } = value { VT::Word } else { VT::String };
+
+                (name, var_type, Some(length), Some(length_type.clone()))
             }
         };
 
