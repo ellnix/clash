@@ -35,8 +35,8 @@ impl VariableNameFormat {
         variable_name[0..1].to_uppercase() + &variable_name[1..]
     }
 
-    fn covert_to_camel_case(_variable_name: &str) -> String {
-        todo!()
+    fn covert_to_camel_case(variable_name: &str) -> String {
+        String::from(variable_name)
     }
 }
 
