@@ -85,8 +85,8 @@ impl TryFrom<&str> for Language {
             .map(|read_dir| read_dir.unwrap().file_name().into_string().expect("Template path must be UTF"))
             .collect();
 
-        Self::find_lang_by_name(value, &lang_folders)?
-            .or(Self::find_lang_by_alias(value, &lang_folders))
+        Self::find_lang_by_name(&value.to_lowercase(), &lang_folders)?
+            .or(Self::find_lang_by_alias(&value.to_lowercase(), &lang_folders))
             .ok_or(anyhow!("Unsupported language: {}", value))
     }
 }
