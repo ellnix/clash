@@ -2,10 +2,12 @@
 ---- 🇷 EAD_ONE: {{ var.var_type }}
 {% endif %}
 
-{%- if var.var_type == "String" or var.var_type == "Word" -%}
-  {% set method = "chomp" %}
+{%- if var.var_type == "String" -%}
+  {% set method = ".chomp" %}
+{%- elif var.var_type == "Word" -%}
+  {% set method = "" %}
 {%- else -%}
-  {% set method = type_tokens[var.var_type] %}
+  {% set method = "." ~ type_tokens[var.var_type] %}
 {%- endif -%}
 
-{{ var.name }} = gets.{{ method }}{% if comment %} # {{ comment.description }}{% endif %}
+{{ var.name }} = gets{{ method }}{% if comment %} # {{ comment.description }}{% endif %}
