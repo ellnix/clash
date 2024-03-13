@@ -92,9 +92,9 @@ a, b = gets.split
 x_tra, y = gets.split.map(&:to_i)
 annoying = gets.chomp
 another_annoying = gets.chomp
-a_bc = gets.chomp
-# The alphabetrow = gets.chomp
-# Your boatn.times do
+a_bc = gets.chomp # The alphabet
+row = gets.chomp # Your boat
+n.times do
   ext, mt = gets.split
 end
 n.times do
