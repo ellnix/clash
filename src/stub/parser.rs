@@ -177,6 +177,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
             Some("read") => self.parse_read(),
             Some("write") => self.parse_write(),
             Some("loopline")  => self.parse_loopline(),
+            Some("loop")  => self.parse_loop(),
             Some(thing) => panic!("Error parsing loop command in stub generator, got: {}", thing),
             None => panic!("Loop with no arguments in stub generator"),
         }
