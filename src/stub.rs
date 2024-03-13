@@ -93,8 +93,8 @@ x_tra, y = gets.split.map(&:to_i)
 annoying = gets.chomp
 another_annoying = gets.chomp
 a_bc = gets.chomp
-row = gets.chomp
-n.times do
+# The alphabetrow = gets.chomp
+# Your boatn.times do
   ext, mt = gets.split
 end
 n.times do
@@ -121,7 +121,7 @@ gets.split.each_slice(3) do |x, y, z|
 end
 puts "#{a} #{b}"
 puts "#{a} #{b}"
-puts "#{a} b #{aBc}"
+puts "#{a} b #{a_bc}"
 puts "hello world"
 puts "hello #{a} planet""##;
 
