@@ -24,8 +24,13 @@ struct Renderer {
 }
 
 impl Renderer {
-    fn new(lang: Language, stub: Stub, debug_mode: bool) -> Result<Renderer> {
+    fn new(lang: Language, mut stub: Stub, debug_mode: bool) -> Result<Renderer> {
         let tera = Tera::new(&lang.template_glob())?;
+
+        for comment in &mut stub.input_comments {
+            comment.variable = lang.transform_variable_name(&comment.variable);
+        }
+
         Ok(Self {
             lang,
             tera,
