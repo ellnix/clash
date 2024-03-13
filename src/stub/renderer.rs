@@ -9,7 +9,7 @@ use tera::{Context, Tera};
 use types::ReadData;
 
 use self::types::VariableType;
-use super::parser::{Cmd, InputComment, JoinTerm, Stub, VariableCommand};
+use super::parser::{Cmd, InputComment, JoinTerm, JoinTermType, Stub, VariableCommand};
 
 pub fn render_stub(lang: Language, stub: Stub, debug_mode: bool) -> Result<String> {
     let renderer = Renderer::new(lang, stub, debug_mode)?;
@@ -94,7 +94,18 @@ impl Renderer {
 
     fn render_write_join(&self, terms: &Vec<JoinTerm>) -> String {
         let mut context = Context::new();
-        context.insert("terms", terms);
+
+        let terms: Vec<JoinTerm> = terms.iter().map(|term| {
+            let mut new_term = term.clone();
+
+            if let JoinTermType::Variable = term.term_type {
+                new_term.name = self.lang.transform_variable_name(&new_term.name);
+            }
+
+            new_term
+        }).collect();
+
+        context.insert("terms", &terms);
         self.tera_render("write_join", &mut context)
     }
 
