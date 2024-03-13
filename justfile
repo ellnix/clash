@@ -54,13 +54,11 @@ check-not-matching:
 # HERE BE DRAGONS #
 ###################
 launch:
-    cargo run -- next
-    cargo run -- generate-stub "ruby" > tmp.rb
-    subl tmp.rb
-    cargo run -- show
-
-go:
-    ls *.rb | entr cargo run -- run --command "ruby tmp.rb"
+    cargo run --quiet -- next
+    cargo run --quiet -- generate-stub "ruby" > tmp.rb
+    code tmp.rb
+    cargo run --quiet -- show
+    ls *.rb | entr -p cargo run --quiet -- run --command "ruby tmp.rb"
 
 run:
     cargo run -- run --command "ruby tmp.rb"
@@ -74,3 +72,8 @@ test-stub-rb:
 test-stub-rs:
     cargo run -- next
     cargo run -- generate-stub "rust"
+
+# Test the stub generator with a random clash in C
+test-stub-c:
+    cargo run -- next
+    cargo run -- generate-stub "c"
