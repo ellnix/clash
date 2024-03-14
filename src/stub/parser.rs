@@ -1,4 +1,5 @@
 #![allow(clippy::while_let_on_iterator)]
+
 use regex::Regex;
 
 pub mod types;
@@ -29,7 +30,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
                 "write"     => stub.commands.push(self.parse_write()),
                 "loop"      => stub.commands.push(self.parse_loop()),
                 "loopline"  => stub.commands.push(self.parse_loopline()),
-                "OUTPUT"    => self.parse_output_comment(&mut stub),
+                "OUTPUT"    => self.parse_output_comment(&mut stub.commands),
                 "INPUT"     => stub.input_comments.append(&mut self.parse_input_comment()),
                 "STATEMENT" => stub.statement = self.parse_statement(),
                 "\n" | ""   => continue,
@@ -62,7 +63,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
 
         Cmd::Write {
             text: output.join(" "),
-            output_text: String::new(),
+            output_comment: String::new(),
         }
     }
 
@@ -186,40 +187,22 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
         }
     }
 
-    fn parse_output_comment(&mut self, stub: &mut Stub) {
-        let output_text_parsed = self.parse_statement();
-        self.recursively_backward_update_output(stub, output_text_parsed)
+    fn parse_output_comment(&mut self, previous_commands: &mut [Cmd]) {
+        let output_comment = self.parse_statement();
+        for cmd in previous_commands { Self::update_cmd_with_output_comment(cmd, &output_comment) }
     }
 
-    fn recursively_backward_update_output(&mut self, stub: &mut Stub, output_text_parsed: String) {
-        let mut new_stub_cmds: Vec<Cmd> = Vec::new();
-
-        for previous_cmd in &stub.commands {
-            let new_cmd = match previous_cmd {
-                Cmd::Write {
-                    text,
-                    ref output_text,
-                } if output_text.is_empty() => Cmd::Write {
-                    text: text.to_string(),
-                    output_text: output_text_parsed.clone(),
-                },
-                Cmd::Loop { count_var, command } => {
-                    // Recur
-                    let mut inner_stub = Stub::new(); // temporary wrapper
-                    inner_stub.commands.push(*command.clone());
-                    self.recursively_backward_update_output(&mut inner_stub, output_text_parsed.clone());
-                    Cmd::Loop {
-                        count_var: count_var.clone(),
-                        command: Box::new(inner_stub.commands.pop().unwrap()),
-                    }
-                }
-                _ => previous_cmd.clone(),
-            };
-
-            new_stub_cmds.push(new_cmd);
+    fn update_cmd_with_output_comment(cmd: &mut Cmd, new_comment: &str) {
+        match cmd {
+            Cmd::Write {
+                text: _,
+                ref mut output_comment,
+            } if output_comment.is_empty() => *output_comment = new_comment.to_string(),
+            Cmd::Loop { count_var: _, ref mut command } => {
+                Self::update_cmd_with_output_comment(command, new_comment);
+            }
+            _ => ()
         }
-
-        stub.commands = new_stub_cmds;
     }
 
     fn parse_input_comment(&mut self) -> Vec<InputComment> {
