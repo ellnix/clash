@@ -87,6 +87,11 @@ launch-rs:
     ls *.rs | entr -p cargo run --quiet -- run \
     --command "cargo run --bin tmp"
 
+launch-rs-debug:
+    code tmp.rs
+    cargo run --quiet -- show
+    ls *.rs | entr -p sh -c 'export RUST_BACKTRACE=1; cargo run --quiet -- run --ignore-failures --command "cargo run --bin tmp"'
+
 run:
     cargo run -- run --command "ruby tmp.rb"
 
