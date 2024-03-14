@@ -178,12 +178,24 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
 
     fn parse_loopable(&mut self) -> Cmd {
         match self.stream.next() {
-            Some("read") => self.parse_read(),
-            Some("write") => self.parse_write(),
-            Some("loopline") => self.parse_loopline(),
-            Some("loop") => self.parse_loop(),
-            Some(thing) => panic!("Error parsing loop command in stub generator, got: {}", thing),
-            None => panic!("Loop with no arguments in stub generator"),
+            Some("\n") => 
+                match self.stream.next() {
+                    Some("\n") => panic!("Loop not provided with command"),
+                    Some(token) => self.loopable_from_token(token),
+                    None => panic!("Unexpected end of input, expecting command to loop through")
+                },
+            Some(token) => self.loopable_from_token(token),
+            None => panic!("Unexpected end of input, expecting command to loop through"),
+        }
+    }
+
+    fn loopable_from_token(&mut self, loopable_token: &str) -> Cmd {
+        match loopable_token {
+            "read" => self.parse_read(),
+            "write" => self.parse_write(),
+            "loopline" => self.parse_loopline(),
+            "loop" => self.parse_loop(),
+            thing => panic!("Error parsing loop command in stub generator, got: {}", thing),
         }
     }
 
