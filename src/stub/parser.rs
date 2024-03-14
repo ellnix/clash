@@ -102,33 +102,24 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn parse_loop(&mut self) -> Cmd {
-        let count_var = match self.stream.next() {
-            Some("\n") => match self.stream.next() {
-                Some("\n") | None => panic!("Could not find count identifier for loop"),
-                Some(other) => String::from(other),
-            }
+        match self.next_past_newline() {
+            Some("\n") => panic!("Could not find count identifier for loop"),
             None => panic!("Unexpected end of input: Loop stub not provided with loop count"),
-            Some(other) => String::from(other),
-        };
-
-        let command = Box::new(self.parse_loopable());
-
-        Cmd::Loop { count_var, command }
+            Some(other) => Cmd::Loop { 
+                count_var: String::from(other), 
+                command: Box::new(self.parse_loopable()) 
+            },
+        }
     }
 
     fn parse_loopline(&mut self) -> Cmd {
-        let count_var = match self.stream.next() {
-            Some("\n") => match self.stream.next() {
-                Some("\n") | None => panic!("Could not find count identifier for loopline"),
-                Some(other) => String::from(other),
-            } 
+        match self.next_past_newline() {
+            Some("\n") => panic!("Could not find count identifier for loopline"),
             None => panic!("Unexpected end of input: Loopline stub not provided with count identifier"),
-            Some(other) => String::from(other),
-        };
-
-        let variables = self.parse_variable_list();
-
-        Cmd::LoopLine { count_var, variables }
+            Some(other) => Cmd::LoopLine {
+                count_var: other.to_string(), variables: self.parse_variable_list()
+            },
+        }
     }
 
     fn parse_variable(token: &str) -> VariableCommand {
@@ -185,25 +176,14 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn parse_loopable(&mut self) -> Cmd {
-        match self.stream.next() {
-            Some("\n") => 
-                match self.stream.next() {
-                    Some("\n") => panic!("Loop not provided with command"),
-                    Some(token) => self.loopable_from_token(token),
-                    None => panic!("Unexpected end of input, expecting command to loop through")
-                },
-            Some(token) => self.loopable_from_token(token),
+        match self.next_past_newline() {
+            Some("\n") => panic!("Loop not provided with command"),
+            Some("read") => self.parse_read(),
+            Some("write") => self.parse_write(),
+            Some("loopline") => self.parse_loopline(),
+            Some("loop") => self.parse_loop(),
+            Some(thing) => panic!("Error parsing loop command in stub generator, got: {}", thing),
             None => panic!("Unexpected end of input, expecting command to loop through"),
-        }
-    }
-
-    fn loopable_from_token(&mut self, loopable_token: &str) -> Cmd {
-        match loopable_token {
-            "read" => self.parse_read(),
-            "write" => self.parse_write(),
-            "loopline" => self.parse_loopline(),
-            "loop" => self.parse_loop(),
-            thing => panic!("Error parsing loop command in stub generator, got: {}", thing),
         }
     }
 
@@ -295,4 +275,12 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
 
         text_block.join(" ")
     }
+
+    fn next_past_newline(&mut self) -> Option<&'a str> {
+        match self.stream.next() {
+            Some("\n") => self.stream.next(),
+            token => token,
+        }
+    }
+
 }
