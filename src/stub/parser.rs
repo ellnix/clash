@@ -103,7 +103,11 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
 
     fn parse_loop(&mut self) -> Cmd {
         let count_var = match self.stream.next() {
-            Some("\n") | None => panic!("Loop stub not provided with loop count"),
+            Some("\n") => match self.stream.next() {
+                Some("\n") | None => panic!("Could not find count identifier for loop"),
+                Some(other) => String::from(other),
+            }
+            None => panic!("Unexpected end of input: Loop stub not provided with loop count"),
             Some(other) => String::from(other),
         };
 
