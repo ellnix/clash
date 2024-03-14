@@ -33,11 +33,24 @@ impl VariableNameFormat {
     }
 
     fn covert_to_pascal_case(variable_name: &str) -> String {
-        variable_name[0..1].to_uppercase() + &variable_name[1..]
+        variable_name[0..1].to_uppercase() + &Self::pascalize(&variable_name[1..])
     }
 
     fn covert_to_camel_case(variable_name: &str) -> String {
-        variable_name[0..1].to_lowercase() + &variable_name[1..]
+        variable_name[0..1].to_lowercase() + &Self::pascalize(&variable_name[1..])
+    }
+
+    fn pascalize(variable_slice: &str) -> String {
+        let word_break = Regex::new(r"([A-Z]*)([A-Z][a-z])").unwrap();
+        let start_replaced = word_break
+            .replace_all(variable_slice, |caps: &regex::Captures| {
+                format!("{}{}", &caps[1].to_lowercase(), &caps[2])
+            });
+
+        let word_end = Regex::new(r"([A-Z])([A-Z]*$)").unwrap();
+        word_end.replace_all(&start_replaced, |caps: &regex::Captures| {
+                format!("{}{}", &caps[1], &caps[2].to_lowercase())
+        }).to_string()
     }
 }
 
