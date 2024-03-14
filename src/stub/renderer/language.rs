@@ -45,16 +45,32 @@ impl VariableNameFormat {
 pub struct Language {
     pub name: String,
     pub variable_format: VariableNameFormat,
+    pub allow_uppercase_vars: Option<bool>,
     pub source_file_ext: String,
     pub type_tokens: TypeTokens,
     pub keywords: Vec<String>,
     pub aliases: Option<Vec<String>>,
 }
 
+fn is_uppercase_string(string: &str) -> bool {
+    string.chars().all(|c| c.is_uppercase())
+}
+
 impl Language {
     pub fn transform_variable_name(&self, variable_name: &str) -> String {
-        self.escape_keywords(self.variable_format.convert(variable_name))
+        // CG has special treatment for variables with all uppercase identifiers
+        // In most languages they remain uppercase regardless of variable format
+        // In some languages (such as ruby where constants are uppercase) they get downcased
+        let converted_variable_name = 
+            match (is_uppercase_string(variable_name), self.allow_uppercase_vars) {
+                (true, Some(false)) => variable_name.to_lowercase(),
+                (true, _) => variable_name.to_string(),
+                (false, _) => self.variable_format.convert(variable_name),
+            };
+
+        self.escape_keywords(converted_variable_name)
     }
+
 
     pub fn escape_keywords(&self, variable_name: String) -> String {
         if self.keywords.contains(&variable_name) {
