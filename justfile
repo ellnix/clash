@@ -53,12 +53,39 @@ check-not-matching:
 ###################
 # HERE BE DRAGONS #
 ###################
-launch:
+launch-rb:
+    cargo run --quiet -- generate-stub "ruby" > tmp.rb
+    code tmp.rb
+    cargo run --quiet -- show
+    ls *.rb | entr -p cargo run --quiet -- run --command "ruby tmp.rb"
+
+launch-new-rb:
     cargo run --quiet -- next
     cargo run --quiet -- generate-stub "ruby" > tmp.rb
     code tmp.rb
     cargo run --quiet -- show
     ls *.rb | entr -p cargo run --quiet -- run --command "ruby tmp.rb"
+
+launch-py:
+    code tmp.py
+    cargo run --quiet -- show
+    ls *.py | entr -p cargo run --quiet -- run --command "python3 tmp.py"
+
+# Requires Cargo.toml to look be like this:
+# [package]
+# name = "clash"
+# version = "0.1.0"
+# edition = "2021"
+# default-run = "clash"
+
+# [[bin]]
+# name = "tmp"
+# path = "tmp.rs"
+launch-rs:
+    code tmp.rs
+    cargo run --quiet -- show
+    ls *.rs | entr -p cargo run --quiet -- run \
+    --command "cargo run --bin tmp"
 
 run:
     cargo run -- run --command "ruby tmp.rb"
