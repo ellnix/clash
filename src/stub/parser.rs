@@ -114,7 +114,11 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
 
     fn parse_loopline(&mut self) -> Cmd {
         let count_var = match self.stream.next() {
-            Some("\n") | None => panic!("Loopline stub not provided with count identifier"),
+            Some("\n") => match self.stream.next() {
+                Some("\n") | None => panic!("Could not find count identifier for loopline"),
+                Some(other) => String::from(other),
+            } 
+            None => panic!("Unexpected end of input: Loopline stub not provided with count identifier"),
             Some(other) => String::from(other),
         };
 
