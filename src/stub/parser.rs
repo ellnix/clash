@@ -29,7 +29,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
                 "write"     => stub.commands.push(self.parse_write()),
                 "loop"      => stub.commands.push(self.parse_loop()),
                 "loopline"  => stub.commands.push(self.parse_loopline()),
-                "OUTPUT"    => stub.output_comment = self.parse_output_comment(),
+                "OUTPUT"    => self.parse_output_comment(&mut stub),
                 "INPUT"     => stub.input_comments.append(&mut self.parse_input_comment()),
                 "STATEMENT" => stub.statement = self.parse_statement(),
                 "\n" | ""   => continue,
@@ -60,7 +60,10 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
             output.push(next_token);
         }
 
-        Cmd::Write(output.join(" "))
+        Cmd::Write {
+            text: output.join(" "),
+            output_text: String::new(),
+        }
     }
 
     fn parse_write_join(&mut self, start: &str) -> Cmd {
@@ -98,14 +101,14 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn parse_loop(&mut self) -> Cmd {
-        let count = match self.stream.next() {
+        let count_var = match self.stream.next() {
             Some("\n") | None => panic!("Loop stub not provided with loop count"),
             Some(other) => String::from(other),
         };
 
         let command = Box::new(self.parse_loopable());
 
-        Cmd::Loop { count, command }
+        Cmd::Loop { count_var, command }
     }
 
     fn parse_loopline(&mut self) -> Cmd {
@@ -183,8 +186,40 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
         }
     }
 
-    fn parse_output_comment(&mut self) -> String {
-        self.parse_text_block()
+    fn parse_output_comment(&mut self, stub: &mut Stub) {
+        let output_text_parsed = self.parse_statement();
+        self.recursively_backward_update_output(stub, output_text_parsed)
+    }
+
+    fn recursively_backward_update_output(&mut self, stub: &mut Stub, output_text_parsed: String) {
+        let mut new_stub_cmds: Vec<Cmd> = Vec::new();
+
+        for previous_cmd in &stub.commands {
+            let new_cmd = match previous_cmd {
+                Cmd::Write {
+                    text,
+                    ref output_text,
+                } if output_text.is_empty() => Cmd::Write {
+                    text: text.to_string(),
+                    output_text: output_text_parsed.clone(),
+                },
+                Cmd::Loop { count_var, command } => {
+                    // Recur
+                    let mut inner_stub = Stub::new(); // temporary wrapper
+                    inner_stub.commands.push(*command.clone());
+                    self.recursively_backward_update_output(&mut inner_stub, output_text_parsed.clone());
+                    Cmd::Loop {
+                        count_var: count_var.clone(),
+                        command: Box::new(inner_stub.commands.pop().unwrap()),
+                    }
+                }
+                _ => previous_cmd.clone(),
+            };
+
+            new_stub_cmds.push(new_cmd);
+        }
+
+        stub.commands = new_stub_cmds;
     }
 
     fn parse_input_comment(&mut self) -> Vec<InputComment> {
@@ -215,16 +250,16 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn read_to_end_of_line(&mut self) -> String {
-        let mut output = Vec::new();
+        let mut upto_end_of_line = Vec::new();
 
         while let Some(token) = self.stream.next() {
             match token {
                 "\n" => break,
-                other => output.push(other),
+                other => upto_end_of_line.push(other),
             }
         }
 
-        output.join(" ")
+        upto_end_of_line.join(" ")
     }
 
     fn skip_to_next_line(&mut self) {
@@ -236,7 +271,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn parse_text_block(&mut self) -> String {
-        let mut output: Vec<String> = Vec::new();
+        let mut text_block: Vec<String> = Vec::new();
 
         while let Some(token) = self.stream.next() {
             let next_token = match token {
@@ -247,9 +282,9 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
                 other => String::from(other),
             };
 
-            output.push(next_token);
+            text_block.push(next_token);
         }
 
-        output.join(" ")
+        text_block.join(" ")
     }
 }
