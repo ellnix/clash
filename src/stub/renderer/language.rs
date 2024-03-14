@@ -1,8 +1,15 @@
 use std::fs;
 
 use anyhow::{anyhow, Context, Result};
+use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+lazy_static! {
+    static ref SC_WORD_BREAK: Regex = Regex::new(r"([a-z])([A-Z])").unwrap();
+    static ref PC_WORD_BREAK: Regex = Regex::new(r"([A-Z]*)([A-Z][a-z])").unwrap();
+    static ref PC_WORD_END: Regex = Regex::new(r"([A-Z])([A-Z]*$)").unwrap();
+}
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -23,8 +30,7 @@ impl VariableNameFormat {
     }
 
     fn convert_to_snake_case(variable_name: &str) -> String {
-        let word_break = Regex::new(r"([a-z])([A-Z])").unwrap();
-        word_break
+        SC_WORD_BREAK
             .replace_all(variable_name, |caps: &regex::Captures| {
                 format!("{}_{}", &caps[1], &caps[2].to_lowercase())
             })
@@ -41,16 +47,15 @@ impl VariableNameFormat {
     }
 
     fn pascalize(variable_slice: &str) -> String {
-        let word_break = Regex::new(r"([A-Z]*)([A-Z][a-z])").unwrap();
-        let start_replaced = word_break
-            .replace_all(variable_slice, |caps: &regex::Captures| {
-                format!("{}{}", &caps[1].to_lowercase(), &caps[2])
-            });
+        let start_replaced = PC_WORD_BREAK.replace_all(variable_slice, |caps: &regex::Captures| {
+            format!("{}{}", &caps[1].to_lowercase(), &caps[2])
+        });
 
-        let word_end = Regex::new(r"([A-Z])([A-Z]*$)").unwrap();
-        word_end.replace_all(&start_replaced, |caps: &regex::Captures| {
+        PC_WORD_END
+            .replace_all(&start_replaced, |caps: &regex::Captures| {
                 format!("{}{}", &caps[1], &caps[2].to_lowercase())
-        }).to_string()
+            })
+            .to_string()
     }
 }
 
@@ -73,17 +78,15 @@ impl Language {
     pub fn transform_variable_name(&self, variable_name: &str) -> String {
         // CG has special treatment for variables with all uppercase identifiers
         // In most languages they remain uppercase regardless of variable format
-        // In some languages (such as ruby where constants are uppercase) they get downcased
-        let converted_variable_name = 
-            match (is_uppercase_string(variable_name), self.allow_uppercase_vars) {
-                (true, Some(false)) => variable_name.to_lowercase(),
-                (true, _) => variable_name.to_string(),
-                (false, _) => self.variable_format.convert(variable_name),
-            };
+        // In others (such as ruby where constants are uppercase) they get downcased
+        let converted_variable_name = match (is_uppercase_string(variable_name), self.allow_uppercase_vars) {
+            (true, Some(false)) => variable_name.to_lowercase(),
+            (true, _) => variable_name.to_string(),
+            (false, _) => self.variable_format.convert(variable_name),
+        };
 
         self.escape_keywords(converted_variable_name)
     }
-
 
     pub fn escape_keywords(&self, variable_name: String) -> String {
         if self.keywords.contains(&variable_name) {
