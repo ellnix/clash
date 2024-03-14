@@ -58,6 +58,9 @@ fn is_uppercase_string(string: &str) -> bool {
 
 impl Language {
     pub fn transform_variable_name(&self, variable_name: &str) -> String {
+        // CG has special treatment for variables with all uppercase identifiers
+        // In most languages they remain uppercase regardless of variable format
+        // In some languages (such as ruby where constants are uppercase) they get downcased
         let converted_variable_name = 
             match (is_uppercase_string(variable_name), self.allow_uppercase_vars) {
                 (true, Some(false)) => variable_name.to_lowercase(),
