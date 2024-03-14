@@ -37,7 +37,7 @@ impl VariableNameFormat {
     }
 
     fn covert_to_camel_case(variable_name: &str) -> String {
-        String::from(variable_name)
+        variable_name[0..1].to_lowercase() + &variable_name[1..]
     }
 }
 
