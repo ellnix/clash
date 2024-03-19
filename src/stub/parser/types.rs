@@ -1,10 +1,8 @@
 use serde::Serialize;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Stub {
     pub commands: Vec<Cmd>,
-    pub input_comments: Vec<InputComment>,
-    pub output_comment: String,
     pub statement: String,
 }
 
@@ -12,91 +10,40 @@ pub struct Stub {
 impl std::fmt::Debug for Stub {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Stub {{\n  commands: [")?;
-
-        // Print commands recursively
         for command in &self.commands {
             write!(f, "\n    {:?}", command)?;
         }
-
-        write!(
-            f,
-            "\n  ],\n  input_comments: {:?},\n  output_comment: {:?},\n  statement: {:?}\n}}",
-            self.input_comments, self.output_comment, self.statement
-        )
+        write!(f, "\n  ],\n  statement: {:?}\n}}", self.statement)
     }
 }
 
-impl Stub {
-    pub fn new() -> Self {
-        Self {
-            commands: Vec::new(),
-            input_comments: Vec::new(),
-            output_comment: String::new(),
-            statement: String::new(),
-        }
-    }
-}
-
-impl Default for Stub {
-    fn default() -> Self {
-        Self::new()
-    }
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Hash)]
+pub enum VarType {
+    Int,
+    Float,
+    Long,
+    Bool,
+    Word,
+    String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct InputComment {
-    pub variable: String,
-    pub description: String,
+pub struct VariableCommand {
+    pub ident: String,
+    pub var_type: VarType,
+    pub max_length: Option<String>,
+    pub input_comment: String,
 }
 
-impl InputComment {
-    pub fn new(variable: String, description: String) -> Self {
-        Self {
-            variable,
-            description,
+impl VariableCommand {
+    pub fn new(ident: String, var_type: VarType, max_length: Option<String>) -> VariableCommand {
+        VariableCommand {
+            ident,
+            var_type,
+            max_length,
+            input_comment: String::new(),
         }
     }
-}
-
-#[derive(Serialize, Clone, Debug)]
-pub enum LengthType {
-    Number,
-    Variable,
-}
-
-impl<'a> From<&'a str> for LengthType {
-    fn from(value: &'a str) -> Self {
-        match value.parse::<usize>() {
-            Ok(_) => Self::Number,
-            Err(_) => Self::Variable,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub enum VariableCommand {
-    Int {
-        name: String,
-    },
-    Float {
-        name: String,
-    },
-    Long {
-        name: String,
-    },
-    Bool {
-        name: String,
-    },
-    Word {
-        name: String,
-        max_length: String,
-        length_type: LengthType,
-    },
-    String {
-        name: String,
-        max_length: String,
-        length_type: LengthType,
-    },
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -132,5 +79,8 @@ pub enum Cmd {
         text: String,
         output_comment: String,
     },
-    WriteJoin(Vec<JoinTerm>),
+    WriteJoin {
+        join_terms: Vec<JoinTerm>,
+        output_comment: String,
+    },
 }

@@ -1,15 +1,12 @@
 pub mod language;
-mod types;
 
 use anyhow::{Context as _, Result}; // To distinguish it from tera::Context
 use itertools::Itertools;
 use language::Language;
 use serde_json::json;
 use tera::{Context, Tera};
-use types::ReadData;
 
-use self::types::VariableType;
-use super::parser::{Cmd, InputComment, JoinTerm, JoinTermType, Stub, VariableCommand};
+use super::parser::{Cmd, JoinTerm, JoinTermType, Stub, VariableCommand};
 
 const ALPHABET: [char; 18] = [
     'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
@@ -28,12 +25,8 @@ struct Renderer {
 }
 
 impl Renderer {
-    fn new(lang: Language, mut stub: Stub, debug_mode: bool) -> Result<Renderer> {
+    fn new(lang: Language, stub: Stub, debug_mode: bool) -> Result<Renderer> {
         let tera = Tera::new(&lang.template_glob())?;
-
-        for comment in &mut stub.input_comments {
-            comment.variable = lang.transform_variable_name(&comment.variable);
-        }
 
         Ok(Self {
             lang,
@@ -84,25 +77,31 @@ impl Renderer {
         match cmd {
             Cmd::Read(vars) => self.render_read(vars),
             Cmd::Write { text, output_comment } => self.render_write(text, output_comment),
-            Cmd::WriteJoin(join_terms) => self.render_write_join(join_terms),
+            Cmd::WriteJoin {
+                join_terms,
+                output_comment,
+            } => self.render_write_join(join_terms, output_comment),
             Cmd::Loop { count_var, command } => self.render_loop(count_var, command, nesting_depth),
-            Cmd::LoopLine { count_var, variables } => self.render_loopline(count_var, variables),
+            Cmd::LoopLine { count_var, variables } => {
+                self.render_loopline(count_var, variables, nesting_depth)
+            }
         }
     }
 
     fn render_write(&self, text: &str, output_comment: &str) -> String {
         let mut context = Context::new();
-        let messages: Vec<&str> = text.lines().map(|msg| msg.trim_end()).collect();
-        let output_comments: Vec<&str> = output_comment.lines().map(|msg| msg.trim_end()).collect();
+        let output_comments: Vec<&str> = output_comment.lines().collect();
+        let messages: Vec<&str> = text.lines().collect();
+
         context.insert("messages", &messages);
         context.insert("output_comments", &output_comments);
 
         self.tera_render("write", &mut context)
     }
 
-    fn render_write_join(&self, terms: &[JoinTerm]) -> String {
+    fn render_write_join(&self, terms: &[JoinTerm], output_comment: &str) -> String {
         let mut context = Context::new();
-
+        let output_comments: Vec<&str> = output_comment.lines().collect();
         let terms: Vec<JoinTerm> = terms
             .iter()
             .cloned()
@@ -115,6 +114,8 @@ impl Renderer {
             .collect();
 
         context.insert("terms", &terms);
+        context.insert("output_comments", &output_comments);
+
         self.tera_render("write_join", &mut context)
     }
 
@@ -127,11 +128,9 @@ impl Renderer {
 
     fn render_read_one(&self, var: &VariableCommand) -> String {
         let mut context = Context::new();
-        let var_data = &ReadData::new(var, &self.lang);
-        let comment = self.stub.input_comments.iter().find(|comment| var_data.name == comment.variable);
+        let var = self.lang.transform_variable_command(var);
 
-        context.insert("comment", &comment);
-        context.insert("var", var_data);
+        context.insert("var", &var);
         context.insert("type_tokens", &self.lang.type_tokens);
 
         self.tera_render("read_one", &mut context)
@@ -139,26 +138,16 @@ impl Renderer {
 
     fn render_read_many(&self, vars: &[VariableCommand]) -> String {
         let mut context = Context::new();
+        let vars = vars.iter().map(|var| self.lang.transform_variable_command(var)).collect::<Vec<_>>();
 
-        let read_data: Vec<ReadData> =
-            vars.iter().map(|var_cmd| ReadData::new(var_cmd, &self.lang)).collect();
-
-        let comments: Vec<&InputComment> = self
-            .stub
-            .input_comments
-            .iter()
-            .filter(|comment| read_data.iter().any(|var_data| var_data.name == comment.variable))
-            .collect();
-
-        let types: Vec<&VariableType> = read_data.iter().map(|r| &r.var_type).unique().collect();
+        let types: Vec<_> = vars.iter().map(|r| &r.var_type).unique().collect();
 
         match types.as_slice() {
             [single_type] => context.insert("single_type", single_type),
             _ => context.insert("single_type", &false),
         }
 
-        context.insert("comments", &comments);
-        context.insert("vars", &read_data);
+        context.insert("vars", &vars);
         context.insert("type_tokens", &self.lang.type_tokens);
 
         self.tera_render("read_many", &mut context)
@@ -176,25 +165,18 @@ impl Renderer {
         self.tera_render("loop", &mut context)
     }
 
-    fn render_loopline(&self, count_var: &str, vars: &[VariableCommand]) -> String {
-        let read_data: Vec<ReadData> =
-            vars.iter().map(|var_cmd| ReadData::new(var_cmd, &self.lang)).collect();
+    fn render_loopline(&self, count_var: &str, vars: &[VariableCommand], nesting_depth: usize) -> String {
+        let vars = vars.iter().map(|var| self.lang.transform_variable_command(var)).collect::<Vec<_>>();
 
         let mut context = Context::new();
 
         let cased_count_var = self.lang.transform_variable_name(count_var);
-
-        let comments: Vec<&InputComment> = self
-            .stub
-            .input_comments
-            .iter()
-            .filter(|comment| read_data.iter().any(|var_data| var_data.name == comment.variable))
-            .collect();
+        let index_ident = ALPHABET[nesting_depth];
 
         context.insert("count_var", &cased_count_var);
-        context.insert("vars", &read_data);
-        context.insert("comments", &comments);
+        context.insert("vars", &vars);
         context.insert("type_tokens", &self.lang.type_tokens);
+        context.insert("index_ident", &index_ident);
 
         self.tera_render("loopline", &mut context)
     }

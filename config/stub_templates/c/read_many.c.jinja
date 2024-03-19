@@ -7,8 +7,9 @@
 {% endif -%}
 {% endif -%}
 
-{% for cmt in comments -%}
-// {{ cmt.variable }}: {{cmt.description}}
+{%- for var in vars %}
+{%- if var.input_comment -%}# {{ var.ident }}: {{ var.input_comment }}
+{% endif -%}
 {% endfor -%}
 
 {# Setup of types (%d, %s etc.) and variable references (& or "") inside the scanf function #}
@@ -20,7 +21,7 @@
   {%- else -%}
     {%- set ref = "&" -%}
   {%- endif -%}
-  {%- set var_ref = ref ~ var.name -%}  
+  {%- set var_ref = ref ~ var.ident -%}  
   {%- set_global var_refs = var_refs | concat(with=var_ref) -%}
   {%- set_global types = types ~ format_symbols[var.var_type] -%}
 {%- endfor -%}
@@ -28,7 +29,7 @@
 {%- if single_type -%}
 
 {%- set_global type = vars[0].var_type -%}
-{{ type_tokens[type] }} {{ vars | map(attribute="name") | join(sep=", ") }};
+{{ type_tokens[type] }} {{ vars | map(attribute="ident") | join(sep=", ") }};
 scanf("{{ types }}", {{ var_refs | join(sep=", ") }});
 
 {%- else %}
@@ -39,7 +40,7 @@ scanf("{{ types }}", {{ var_refs | join(sep=", ") }});
 {%- else -%}
   {%- set len = "" -%}
 {%- endif -%}
-{{ type_tokens[var.var_type] }} {{ var.name }}{{ len }};
+{{ type_tokens[var.var_type] }} {{ var.ident }}{{ len }};
 {% endfor -%}
 scanf("{{ types }}", {{ var_refs | join(sep=", ") }});
 

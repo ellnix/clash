@@ -3,10 +3,10 @@
 use regex::Regex;
 
 pub mod types;
-pub use types::{Cmd, InputComment, JoinTerm, JoinTermType, LengthType, Stub, VariableCommand};
+pub use types::{Cmd, JoinTerm, JoinTermType, Stub, VariableCommand};
 
 pub fn parse_generator_stub(generator: String) -> Stub {
-    let generator = generator.replace('\n', " \n ").replace("\n  \n", "\n \n");
+    let generator = generator.replace('\n', " \n ");
     let stream = generator.split(' ');
     Parser::new(stream).parse()
 }
@@ -22,7 +22,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
 
     #[rustfmt::skip]
     fn parse(&mut self) -> Stub {
-        let mut stub = Stub::new();
+        let mut stub = Stub::default();
 
         while let Some(token) = self.stream.next() {
             match token {
@@ -31,10 +31,10 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
                 "loop"      => stub.commands.push(self.parse_loop()),
                 "loopline"  => stub.commands.push(self.parse_loopline()),
                 "OUTPUT"    => self.parse_output_comment(&mut stub.commands),
-                "INPUT"     => stub.input_comments.append(&mut self.parse_input_comment()),
-                "STATEMENT" => stub.statement = self.parse_statement(),
+                "INPUT"     => self.parse_input_comment(&mut stub.commands),
+                "STATEMENT" => stub.statement = self.parse_text_block(),
                 "\n" | ""   => continue,
-                thing => panic!("Error parsing stub generator: {}", thing),
+                thing => panic!("Unknown token stub generator: '{}'", thing),
             };
         }
 
@@ -42,63 +42,76 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn parse_read(&mut self) -> Cmd {
-        Cmd::Read(self.parse_variable_list())
+        Cmd::Read(self.parse_variables())
     }
 
     fn parse_write(&mut self) -> Cmd {
-        let mut output: Vec<String> = Vec::new();
+        let mut write_text: Vec<String> = Vec::new();
+        let mut first_line = true;
 
-        while let Some(token) = self.stream.next() {
-            let next_token = match token {
-                "\n" => match self.stream.next() {
-                    Some("\n") | None => break,
-                    Some(str) => format!("\n{}", str),
-                },
-                join if join.starts_with("join(") => return self.parse_write_join(join),
-                other => String::from(other),
-            };
-
-            output.push(next_token);
+        while let Some(line) = self.upto_newline() {
+            // NOTE: write•join()•rest⏎, with NOTHING inside the parens,
+            //       gets parsed as a write and not as a write_join
+            // NOTE: write•join("a")⏎ is a valid join
+            // NOTE: write•join(⏎ gets parsed as a raw_string
+            if let Some(position) = line
+                .iter()
+                .position(|&token| token.starts_with("join(") && !token.starts_with("join()") && first_line)
+            {
+                let result_slice = &line[position..];
+                return self.parse_write_join(result_slice.to_vec())
+            }
+            first_line = false;
+            write_text.push(line.join(" ").trim().to_string())
         }
 
         Cmd::Write {
-            text: output.join(" "),
+            text: write_text.join("\n"),
             output_comment: String::new(),
         }
     }
 
-    fn parse_write_join(&mut self, start: &str) -> Cmd {
-        let mut raw_string = String::from(start);
-
-        while let Some(token) = self.stream.next() {
-            match token {
-                "\n" => panic!("'join(' never closed"),
-                last_term if last_term.contains(')') => {
-                    raw_string.push_str(last_term);
-                    break;
+    fn parse_write_join(&self, line_stream: Vec<&str>) -> Cmd {
+        let inner = line_stream.join(" ");
+        let terms_finder = Regex::new(r"join\(([^)]*)\)").unwrap();
+        let terms_string_captures = terms_finder.captures(&inner);
+        let terms_string = match terms_string_captures {
+            None => {
+                // in case write join(⏎
+                return Cmd::Write {
+                    text: inner,
+                    output_comment: String::new(),
                 }
-                regular_term => raw_string.push_str(regular_term),
             }
-        }
+            Some(str) => str.get(1).unwrap().as_str(),
+        };
+        let term_splitter = Regex::new(r",\s*").unwrap();
+        let literal_matcher = Regex::new("\\\"([^)]+)\\\"").unwrap();
 
-        self.skip_to_next_line();
-
-        let terms_finder = Regex::new(r"join\((.+)\)").unwrap();
-        let terms_string = terms_finder.captures(&raw_string).unwrap().get(1).unwrap().as_str();
-        let term_splitter = Regex::new(r"\s*,\s*").unwrap();
-        let terms: Vec<JoinTerm> = term_splitter
+        let join_terms = term_splitter
             .split(terms_string)
             .map(|term_str| {
-                let literal_matcher = Regex::new("^\\\"(.+)\\\"$").unwrap();
                 if let Some(mtch) = literal_matcher.captures(term_str) {
                     JoinTerm::new(mtch.get(1).unwrap().as_str().to_owned(), JoinTermType::Literal)
                 } else {
                     JoinTerm::new(term_str.to_owned(), JoinTermType::Variable)
                 }
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        Cmd::WriteJoin(terms)
+        // write•join("hi",,,•"Jim")⏎ should be rendered as a Write Cmd
+        // (I guess the original parser fails a previous command due to consecutive commas)
+        if join_terms.iter().any(|jt| jt.name.is_empty()) {
+            return Cmd::Write {
+                text: inner,
+                output_comment: String::new(),
+            }
+        }
+
+        Cmd::WriteJoin {
+            join_terms,
+            output_comment: String::new(),
+        }
     }
 
     fn parse_loop(&mut self) -> Cmd {
@@ -130,7 +143,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
             None => panic!("Unexpected end of input: Loopline stub not provided with count identifier"),
             Some(other) => Cmd::LoopLine {
                 count_var: other.to_string(),
-                variables: self.parse_variable_list(),
+                variables: self.parse_variables(),
             },
         }
     }
@@ -142,10 +155,10 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
 
         // Trim because the stub generator may contain sneaky newlines
         match var_type.trim_end() {
-            "int" => VariableCommand::Int { name: identifier },
-            "float" => VariableCommand::Float { name: identifier },
-            "long" => VariableCommand::Long { name: identifier },
-            "bool" => VariableCommand::Bool { name: identifier },
+            "int" => VariableCommand::new(identifier, types::VarType::Int, None),
+            "float" => VariableCommand::new(identifier, types::VarType::Float, None),
+            "long" => VariableCommand::new(identifier, types::VarType::Long, None),
+            "bool" => VariableCommand::new(identifier, types::VarType::Bool, None),
             _ => {
                 let length_regex = Regex::new(r"(word|string)\((\w+)\)").unwrap();
                 let length_captures = length_regex.captures(var_type);
@@ -154,42 +167,32 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
                 let new_type = caps.get(1).unwrap().as_str();
                 let length = caps.get(2).unwrap().as_str();
                 let max_length = String::from(length);
-                let length_type = LengthType::from(length);
                 match new_type {
-                    "word" => VariableCommand::Word {
-                        name: identifier,
-                        max_length,
-                        length_type,
-                    },
-                    "string" => VariableCommand::String {
-                        name: identifier,
-                        max_length,
-                        length_type,
-                    },
+                    "word" => VariableCommand::new(identifier, types::VarType::Word, Some(max_length)),
+                    "string" => VariableCommand::new(identifier, types::VarType::String, Some(max_length)),
                     _ => panic!("Unexpected error"),
                 }
             }
         }
     }
 
-    fn parse_variable_list(&mut self) -> Vec<VariableCommand> {
+    fn parse_variables(&mut self) -> Vec<VariableCommand> {
         let mut vars = Vec::new();
+        let Some(line) = self.upto_newline() else {
+            panic!("Empty line after read keyword")
+        };
 
-        while let Some(token) = self.stream.next() {
-            let var: VariableCommand = match token {
-                _ if String::from(token).contains(':') => Self::parse_variable(token),
-                "\n" => break,
-                unexp => panic!("Error in stub generator, found {unexp} while searching for stub variables"),
-            };
-
-            vars.push(var);
+        for token in line {
+            if token != "" {
+                vars.push(Self::parse_variable(token))
+            }
         }
 
         vars
     }
 
     fn parse_output_comment(&mut self, previous_commands: &mut [Cmd]) {
-        let output_comment = self.parse_statement();
+        let output_comment = self.parse_text_block();
         for cmd in previous_commands {
             Self::update_cmd_with_output_comment(cmd, &output_comment)
         }
@@ -199,6 +202,10 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
         match cmd {
             Cmd::Write {
                 text: _,
+                ref mut output_comment,
+            }
+            | Cmd::WriteJoin {
+                join_terms: _,
                 ref mut output_comment,
             } if output_comment.is_empty() => *output_comment = new_comment.to_string(),
             Cmd::Loop {
@@ -211,44 +218,50 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
         }
     }
 
-    fn parse_input_comment(&mut self) -> Vec<InputComment> {
-        self.skip_to_next_line();
-        let mut comments = Vec::new();
+    // Doesn't deal with InputComments to unassigned variables
+    // nor InputComments to variables with the same identifier
+    fn parse_input_comment(&mut self, previous_commands: &mut [Cmd]) {
+        let input_statement = self.parse_text_block();
+        let input_comments = input_statement
+            .lines()
+            .filter(|line| line.contains(':'))
+            .map(|line| {
+                if let Some((var, rest)) = line.split_once(':') {
+                    (String::from(var.trim()), String::from(rest.trim()))
+                } else {
+                    panic!("Impossible since the list was filtered??");
+                }
+            })
+            .collect::<Vec<_>>();
 
-        while let Some(token) = self.stream.next() {
-            let comment = match token {
-                "\n" => break,
-                _ => match token.strip_suffix(':') {
-                    Some(variable) => InputComment::new(String::from(variable), self.read_to_end_of_line()),
-                    None => {
-                        self.skip_to_next_line();
-                        continue
-                    }
-                },
-            };
-
-            comments.push(comment)
-        }
-
-        comments
-    }
-
-    fn parse_statement(&mut self) -> String {
-        self.skip_to_next_line();
-        self.parse_text_block()
-    }
-
-    fn read_to_end_of_line(&mut self) -> String {
-        let mut upto_end_of_line = Vec::new();
-
-        while let Some(token) = self.stream.next() {
-            match token {
-                "\n" => break,
-                other => upto_end_of_line.push(other),
+        for (ic_ident, ic_comment) in input_comments {
+            for cmd in previous_commands.iter_mut() {
+                Self::update_cmd_with_input_comment(cmd, &ic_ident, &ic_comment);
             }
         }
+    }
 
-        upto_end_of_line.join(" ")
+    fn update_cmd_with_input_comment(cmd: &mut Cmd, ic_ident: &String, ic_comment: &String) {
+        match cmd {
+            Cmd::Read(variables)
+            | Cmd::LoopLine {
+                count_var: _,
+                variables,
+            } => {
+                for var in variables.iter_mut() {
+                    if var.ident == *ic_ident {
+                        var.input_comment = ic_comment.clone();
+                    }
+                }
+            }
+            Cmd::Loop {
+                count_var: _,
+                ref mut command,
+            } => {
+                return Self::update_cmd_with_input_comment(command, &ic_ident, &ic_comment);
+            }
+            _ => (),
+        }
     }
 
     fn skip_to_next_line(&mut self) {
@@ -260,29 +273,14 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn parse_text_block(&mut self) -> String {
-        let mut text_block: Vec<String> = Vec::new();
+        self.skip_to_next_line();
 
-        while let Some(token) = self.stream.next() {
-            let next_token = match token {
-                "\n" => match self.stream.next() {
-                    Some("\n") | None => break,
-                    Some(str) => format!("\n{}", str),
-                },
-                other => String::from(other),
-            };
-            text_block.push(next_token);
+        let mut text_block: Vec<String> = Vec::new();
+        while let Some(line) = self.upto_newline() {
+            text_block.push(line.join(" ").trim().to_string())
         }
 
-        // Hacky - The replace is due to the "replace hacks" at generator
-        // so that ["you", "\ndown"] -> you\ndown ...
-        // while trimming spaces both sides of each line
-        text_block
-            .join(" ")
-            .replace(" \n", "\n")
-            .split('\n')
-            .map(|line| line.trim())
-            .collect::<Vec<_>>()
-            .join("\n")
+        text_block.join("\n")
     }
 
     fn next_past_newline(&mut self) -> Option<&'a str> {
@@ -290,6 +288,23 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
             Some("\n") => self.stream.next(),
             Some("") => self.next_past_newline(),
             token => token,
+        }
+    }
+
+    // Consumes the newline
+    fn upto_newline(&mut self) -> Option<Vec<&'a str>> {
+        let mut buf = Vec::new();
+        while let Some(token) = self.stream.next() {
+            if token == "\n" {
+                break
+            }
+            buf.push(token)
+        }
+
+        if buf.join("").is_empty() {
+            None
+        } else {
+            Some(buf)
         }
     }
 }
