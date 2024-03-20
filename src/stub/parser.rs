@@ -8,21 +8,38 @@ use regex::Regex;
 use token_stream::TokenStream;
 
 pub fn parse_generator_stub(generator: &str) -> Stub {
-    let token_stream = TokenStream::from(generator);
-    Parser::new(token_stream).parse()
+    Parser::from(generator).parse()
 }
 
-struct Parser<'a> {
+/// A wrapper around an iterator of tokens in the CG stub. Contains all of the stub parsing logic.
+///
+/// Exists solely to be consumed with `.parse()`
+pub struct Parser<'a> {
     token_stream: TokenStream<'a>,
 }
 
-impl<'a> Parser<'a> {
-    fn new(token_stream: TokenStream<'a>) -> Self {
+impl<'a> From<&'a str> for Parser<'a> {
+    fn from(value: &'a str) -> Self {
+        let token_stream = TokenStream::from(value);
         Self { token_stream }
     }
+}
 
+impl<'a> Parser<'a> {
     #[rustfmt::skip]
-    fn parse(&mut self) -> Stub {
+    /// Parses its stream into a Stub, which includes a tree of the commands in the CG stub.
+    ///
+    /// Cannot be called twice since it consumes the stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clashlib::stub::parser::Parser; 
+    ///
+    /// let stub_text = "read a:int b:long \n write this is a test";
+    /// Parser::from(stub_text).parse();
+    /// ```
+    pub fn parse(mut self) -> Stub {
         let mut stub = Stub::default();
 
         while let Some(token) = self.next_token() {
