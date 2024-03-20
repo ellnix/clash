@@ -1,30 +1,31 @@
 #![allow(clippy::while_let_on_iterator)]
 
-use regex::Regex;
-
 pub mod types;
 pub use types::{Cmd, JoinTerm, JoinTermType, Stub, VariableCommand};
+mod token_stream;
 
-pub fn parse_generator_stub(generator: String) -> Stub {
-    let generator = generator.replace('\n', " \n ");
-    let stream = generator.split(' ');
-    Parser::new(stream).parse()
+use regex::Regex;
+use token_stream::TokenStream;
+
+pub fn parse_generator_stub(generator: &str) -> Stub {
+    let token_stream = TokenStream::from(generator);
+    Parser::new(token_stream).parse()
 }
 
-struct Parser<StreamType: Iterator> {
-    stream: StreamType,
+struct Parser<'a> {
+    token_stream: TokenStream<'a>,
 }
 
-impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
-    fn new(stream: I) -> Self {
-        Self { stream }
+impl<'a> Parser<'a> {
+    fn new(token_stream: TokenStream<'a>) -> Self {
+        Self { token_stream }
     }
 
     #[rustfmt::skip]
     fn parse(&mut self) -> Stub {
         let mut stub = Stub::default();
 
-        while let Some(token) = self.stream.next() {
+        while let Some(token) = self.next_token() {
             match token {
                 "read"      => stub.commands.push(self.parse_read()),
                 "write"     => stub.commands.push(self.parse_write()),
@@ -49,20 +50,20 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
         let mut write_text: Vec<String> = Vec::new();
         let mut first_line = true;
 
-        while let Some(line) = self.upto_newline() {
+        while let Some(token_list) = self.tokens_in_next_line() {
             // NOTE: write•join()•rest⏎, with NOTHING inside the parens,
             //       gets parsed as a write and not as a write_join
             // NOTE: write•join("a")⏎ is a valid join
             // NOTE: write•join(⏎ gets parsed as a raw_string
-            if let Some(position) = line
+            if let Some(position) = token_list
                 .iter()
                 .position(|&token| token.starts_with("join(") && !token.starts_with("join()") && first_line)
             {
-                let result_slice = &line[position..];
+                let result_slice = &token_list[position..];
                 return self.parse_write_join(result_slice.to_vec())
             }
             first_line = false;
-            write_text.push(line.join(" ").trim().to_string())
+            write_text.push(token_list.join(" ").trim().to_string())
         }
 
         Cmd::Write {
@@ -178,7 +179,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
 
     fn parse_variables(&mut self) -> Vec<VariableCommand> {
         let mut vars = Vec::new();
-        let Some(line) = self.upto_newline() else {
+        let Some(line) = self.tokens_in_next_line() else {
             panic!("Empty line after read keyword")
         };
 
@@ -265,7 +266,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn skip_to_next_line(&mut self) {
-        while let Some(token) = self.stream.next() {
+        while let Some(token) = self.next_token() {
             if token == "\n" {
                 break
             }
@@ -276,7 +277,7 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
         self.skip_to_next_line();
 
         let mut text_block: Vec<String> = Vec::new();
-        while let Some(line) = self.upto_newline() {
+        while let Some(line) = self.tokens_in_next_line() {
             text_block.push(line.join(" ").trim().to_string())
         }
 
@@ -284,17 +285,22 @@ impl<'a, I: Iterator<Item = &'a str>> Parser<I> {
     }
 
     fn next_past_newline(&mut self) -> Option<&'a str> {
-        match self.stream.next() {
-            Some("\n") => self.stream.next(),
+        match self.next_token() {
+            Some("\n") => self.next_token(),
             Some("") => self.next_past_newline(),
             token => token,
         }
     }
 
+    fn next_token(&mut self) -> Option<&'a str> {
+        self.token_stream.next()
+    }
+
     // Consumes the newline
-    fn upto_newline(&mut self) -> Option<Vec<&'a str>> {
+    fn tokens_in_next_line(&mut self) -> Option<Vec<&'a str>> {
         let mut buf = Vec::new();
-        while let Some(token) = self.stream.next() {
+
+        while let Some(token) = self.next_token() {
             if token == "\n" {
                 break
             }
