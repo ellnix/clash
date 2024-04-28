@@ -8,7 +8,7 @@ pub fn transform(stub: &mut Stub) {
     let mut reads = Vec::new();
 
     while let Some(mut cmd) = old_commands.next() {
-        if matches!(cmd, Cmd::Loop{ .. }) {
+        if matches!(cmd, Cmd::Loop { .. }) {
             cmd = transform_loop(cmd);
         }
 
@@ -37,16 +37,19 @@ pub fn transform(stub: &mut Stub) {
 
 fn transform_loop(cmd: Cmd) -> Cmd {
     match cmd {
-        Cmd::Loop { command, count_var } => Cmd::Loop { count_var, command: Box::new(transform_loop(*command)) },
+        Cmd::Loop { command, count_var } => Cmd::Loop {
+            count_var,
+            command: Box::new(transform_loop(*command)),
+        },
         Cmd::Read(_) => {
             let read_batch = ReadBatch {
                 line_readers: vec![cmd],
-                nested_cmds: Vec::new()
+                nested_cmds: Vec::new(),
             };
 
             Cmd::External(Box::new(read_batch))
-        },
-        _ => cmd
+        }
+        _ => cmd,
     }
 }
 
