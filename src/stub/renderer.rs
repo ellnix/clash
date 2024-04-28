@@ -14,14 +14,14 @@ pub fn render_stub(config: StubConfig, stub: Stub) -> Result<String> {
     Ok(renderer.render())
 }
 
-pub struct Renderer {
+pub struct Renderer<'a> {
     tera: Tera,
     lang: Language,
-    stub: Stub,
+    stub: Stub<'a>,
 }
 
-impl Renderer {
-    fn new(config: StubConfig, stub: Stub) -> Result<Renderer> {
+impl<'a> Renderer<'a> {
+    fn new(config: StubConfig, stub: Stub<'a>) -> Result<Renderer> {
         Ok(Self {
             lang: config.language,
             tera: config.tera,
@@ -29,7 +29,7 @@ impl Renderer {
         })
     }
 
-    fn tera_render(&self, template_name: &str, context: &mut Context) -> String {
+    pub fn tera_render(&self, template_name: &str, context: &mut Context) -> String {
         // Since these are (generally) shared across languages, it makes sense to
         // store it in the "global" context instead of accepting it as parameters.
         let format_symbols = json!({
@@ -76,10 +76,8 @@ impl Renderer {
             Cmd::Loop { count_var, command } => self.render_loop(count_var, command, nesting_depth),
             Cmd::LoopLine { count_var, variables } => {
                 self.render_loopline(count_var, variables, nesting_depth)
-            },
-            Cmd::External(cmd) => {
-                cmd.render(self)
             }
+            Cmd::External(cmd) => cmd.render(self),
         }
     }
 

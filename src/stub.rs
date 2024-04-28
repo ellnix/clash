@@ -1,19 +1,22 @@
 pub mod language;
 mod parser;
+pub mod preprocessor;
 mod renderer;
 pub mod stub_config;
-pub mod preprocessor;
 
 use anyhow::Result;
 use indoc::indoc;
 pub use language::Language;
+use preprocessor::Renderable;
 use serde::Serialize;
 pub use stub_config::StubConfig;
 
-use preprocessor::RenderableCmd;
-
 pub fn generate(config: StubConfig, generator: &str) -> Result<String> {
-    let stub = parser::parse_generator_stub(generator)?;
+    let mut stub = parser::parse_generator_stub(generator)?;
+
+    for processor in config.language.preprocessors.iter() {
+        processor(&mut stub);
+    }
 
     // eprint!("=======\n{:?}\n======\n", generator);
     // eprint!("=======\n{:?}\n======\n", stub);
@@ -24,13 +27,13 @@ pub fn generate(config: StubConfig, generator: &str) -> Result<String> {
 }
 
 #[derive(Clone, Default)]
-pub struct Stub {
-    pub commands: Vec<Cmd>,
+pub struct Stub<'a> {
+    pub commands: Vec<Cmd<'a>>,
     pub statement: Vec<String>,
 }
 
 // More visual than derive(Debug)
-impl std::fmt::Debug for Stub {
+impl<'a> std::fmt::Debug for Stub<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Stub {{\n  commands: [")?;
         for command in &self.commands {
@@ -102,11 +105,11 @@ impl JoinTerm {
 }
 
 #[derive(Debug, Clone)]
-pub enum Cmd {
+pub enum Cmd<'a> {
     Read(Vec<VariableCommand>),
     Loop {
         count_var: String,
-        command: Box<Cmd>,
+        command: Box<Cmd<'a>>,
     },
     LoopLine {
         count_var: String,
@@ -120,7 +123,7 @@ pub enum Cmd {
         join_terms: Vec<JoinTerm>,
         output_comment: Vec<String>,
     },
-    External(Box<dyn RenderableCmd>),
+    External(Box<dyn Renderable<'a> + 'a>),
 }
 
 pub const SIMPLE_REFERENCE_STUB: &str = indoc! {r##"

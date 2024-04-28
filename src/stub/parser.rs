@@ -32,7 +32,7 @@ impl<'a> Parser<'a> {
     }
 
     #[rustfmt::skip]
-    fn parse(mut self) -> Result<Stub> {
+    fn parse(mut self) -> Result<Stub<'a>> {
         let mut stub = Stub::default();
 
         while let Some(token) = self.next_token() {
