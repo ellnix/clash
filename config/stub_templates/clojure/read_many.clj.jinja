@@ -14,7 +14,7 @@
   {%- set fn = "(map #(" ~ type_tokens[var.var_type] ~ " %) " -%}
 {%- endif -%}
 
-{{ idents }} {{ fn }}{{ clj_split }}
+[{{ idents }}] {{ fn }}{{ clj_split }}
 {% else -%}
 
 [{{ idents }}] {{ clj_split }}
