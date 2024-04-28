@@ -1,77 +1,77 @@
-use std::cell::RefCell;
-
-use itertools::Itertools;
-
 use super::Renderable;
 use crate::stub::{Cmd, Stub, VariableCommand};
 
 pub fn transform(stub: &mut Stub) {
+    dbg!(&stub.commands);
+
     let old_commands = stub.commands.drain(..).peekable();
 
-    stub.commands = old_commands
-        .batching(|it| {
-            let cmd = it.next()?;
-            if let Cmd::Read(vars) = cmd {
-                let mut reads: Vec<Vec<VariableCommand>> = vec![vars];
+    let (mut cmds, mut leftover) = old_commands
+        .rev()
+        .fold((vec![], vec![]), |(mut cmds, mut reads), cmd| {
+            if matches!(cmd, Cmd::Read(_)) {
+                reads.push(cmd)
+            } else {
+                if !reads.is_empty() {
+                    let read_batch = ReadBatch::new(
+                            reads.drain(..).collect(),
+                            cmds.drain(..).collect(),
+                    );
 
-                while let Some(Cmd::Read(vars)) = it.next_if(|cmd| matches!(cmd, Cmd::Read(_))) {
-                    reads.push(vars);
+                    cmds.push(Cmd::External(Box::new(read_batch)));
                 }
 
-                let batch = ReadBatch::new(reads, RefCell::new(Vec::new()));
-                Some(Cmd::External(Box::new(batch)))
-            } else {
-                Some(cmd)
+                cmds.push(cmd);
             }
-        })
-        .collect();
 
-    let read_batches: Vec<(usize, &ReadBatch)> = stub
-        .commands
-        .iter()
-        .enumerate()
-        .filter_map(|(i, cmd)| {
-            if let Cmd::External(renderable) = cmd {
-                Some((i, renderable.as_any().downcast_ref::<ReadBatch>()?))
-            } else {
-                None
-            }
-        })
-        .collect();
+            (cmds, reads)
+        });
 
-    for (i, read_batch) in read_batches {
-        let mut nested_cmds: Vec<&Cmd> = stub.commands[i..].iter().collect();
-        read_batch.nested_cmds.borrow_mut().append(&mut nested_cmds);
+    dbg!(&cmds);
+    dbg!(&leftover);
+
+    if !leftover.is_empty() {
+        let read_batch = ReadBatch::new(
+            leftover.drain(..).collect(),
+            cmds.drain(..).collect(),
+        );
+
+        cmds.push(Cmd::External(Box::new(read_batch)));
     }
+
+    stub.commands = cmds;
+    stub.commands.reverse();
 }
 
 #[derive(Debug, Clone)]
-struct ReadBatch<'a> {
-    pub read_lines: Vec<Vec<VariableCommand>>,
-    pub nested_cmds: RefCell<Vec<&'a Cmd<'a>>>,
+struct ReadBatch {
+    pub line_readers: Vec<Cmd>,
+    pub nested_cmds: Vec<Cmd>,
 }
 
-impl<'a> ReadBatch<'a> {
-    fn new(read_lines: Vec<Vec<VariableCommand>>, nested_cmds: RefCell<Vec<&'a Cmd<'a>>>) -> ReadBatch<'a> {
+impl ReadBatch {
+    fn new(line_readers: Vec<Cmd>, nested_cmds: Vec<Cmd>) -> ReadBatch {
         ReadBatch {
-            read_lines,
+            line_readers,
             nested_cmds,
         }
     }
 }
 
-impl<'a> Renderable<'a> for ReadBatch<'a> {
+impl Renderable for ReadBatch {
     fn render(&self, renderer: &crate::stub::renderer::Renderer) -> String {
         let nested_string: String =
-            self.nested_cmds.borrow().iter().map(|cmd| renderer.render_command(cmd, 0)).collect();
+            self.nested_cmds.iter().map(|cmd| renderer.render_command(cmd, 0)).collect();
         let nested_lines: Vec<&str> = nested_string.lines().collect();
+
+        let read_lines: String = 
+            self.line_readers.iter().map(|cmd| renderer.render_command(cmd, 0)).collect();
+        let read_lines: Vec<&str> = read_lines.lines().collect();
+        dbg!(&read_lines);
+
         let mut context = tera::Context::new();
-        context.insert("read_lines", &self.read_lines);
+        context.insert("read_lines", &read_lines);
         context.insert("nested_lines", &nested_lines);
         renderer.tera_render("read_batch", &mut context)
-    }
-
-    fn as_any(&self) -> &(dyn std::any::Any + 'a) {
-        self
     }
 }

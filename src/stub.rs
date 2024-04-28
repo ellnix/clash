@@ -27,13 +27,13 @@ pub fn generate(config: StubConfig, generator: &str) -> Result<String> {
 }
 
 #[derive(Clone, Default)]
-pub struct Stub<'a> {
-    pub commands: Vec<Cmd<'a>>,
+pub struct Stub {
+    pub commands: Vec<Cmd>,
     pub statement: Vec<String>,
 }
 
 // More visual than derive(Debug)
-impl<'a> std::fmt::Debug for Stub<'a> {
+impl std::fmt::Debug for Stub {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Stub {{\n  commands: [")?;
         for command in &self.commands {
@@ -105,11 +105,11 @@ impl JoinTerm {
 }
 
 #[derive(Debug, Clone)]
-pub enum Cmd<'a> {
+pub enum Cmd {
     Read(Vec<VariableCommand>),
     Loop {
         count_var: String,
-        command: Box<Cmd<'a>>,
+        command: Box<Cmd>,
     },
     LoopLine {
         count_var: String,
@@ -123,7 +123,7 @@ pub enum Cmd<'a> {
         join_terms: Vec<JoinTerm>,
         output_comment: Vec<String>,
     },
-    External(Box<dyn Renderable<'a> + 'a>),
+    External(Box<dyn Renderable>),
 }
 
 pub const SIMPLE_REFERENCE_STUB: &str = indoc! {r##"

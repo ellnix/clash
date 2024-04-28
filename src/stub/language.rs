@@ -23,7 +23,7 @@ pub struct Language {
     pub variable_name_options: VariableNameOptions,
     pub source_file_ext: String,
     pub type_tokens: TypeTokens,
-    #[serde(deserialize_with = "deser_preprocessors")]
+    #[serde(deserialize_with = "deser_preprocessors", default)]
     pub preprocessors: Vec<Preprocessor>,
 }
 

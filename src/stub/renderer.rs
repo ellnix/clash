@@ -14,14 +14,14 @@ pub fn render_stub(config: StubConfig, stub: Stub) -> Result<String> {
     Ok(renderer.render())
 }
 
-pub struct Renderer<'a> {
+pub struct Renderer {
     tera: Tera,
     lang: Language,
-    stub: Stub<'a>,
+    stub: Stub,
 }
 
-impl<'a> Renderer<'a> {
-    fn new(config: StubConfig, stub: Stub<'a>) -> Result<Renderer> {
+impl Renderer {
+    fn new(config: StubConfig, stub: Stub) -> Result<Renderer> {
         Ok(Self {
             lang: config.language,
             tera: config.tera,
