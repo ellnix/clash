@@ -8,7 +8,9 @@ pub fn transform(stub: &mut Stub) {
     let mut reads = Vec::new();
 
     while let Some(mut cmd) = old_commands.next() {
-        cmd = transform_loop(cmd);
+        if matches!(cmd, Cmd::Loop{ .. }) {
+            cmd = transform_loop(cmd);
+        }
 
         let is_read = matches!(cmd, Cmd::Read(_));
 
