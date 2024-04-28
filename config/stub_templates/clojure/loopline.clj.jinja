@@ -29,7 +29,7 @@
 
 (doseq
   [{{ idents }} (map (fn [{{ idents }}] [{{ fns | join(sep=" ") }}])
-  (partition {{ vars_length }} (filter #(not-empty %) (str/split (read-line) #" ")))
+  (partition {{ vars_length }} (filter #(not-empty %) (str/split (read-line) #" "))))
   ]
   ( ))
 
