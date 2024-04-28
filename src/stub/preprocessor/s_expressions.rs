@@ -2,39 +2,26 @@ use super::Renderable;
 use crate::stub::{Cmd, Stub, VariableCommand};
 
 pub fn transform(stub: &mut Stub) {
-    dbg!(&stub.commands);
-
     let old_commands = stub.commands.drain(..).peekable();
 
-    let (mut cmds, mut leftover) = old_commands
-        .rev()
-        .fold((vec![], vec![]), |(mut cmds, mut reads), cmd| {
-            if matches!(cmd, Cmd::Read(_)) {
-                reads.push(cmd)
-            } else {
-                if !reads.is_empty() {
-                    let read_batch = ReadBatch::new(
-                            reads.drain(..).collect(),
-                            cmds.drain(..).collect(),
-                    );
+    let (mut cmds, mut leftover) = old_commands.rev().fold((vec![], vec![]), |(mut cmds, mut reads), cmd| {
+        if matches!(cmd, Cmd::Read(_)) {
+            reads.push(cmd)
+        } else {
+            if !reads.is_empty() {
+                let read_batch = ReadBatch::new(reads.drain(..).collect(), cmds.drain(..).collect());
 
-                    cmds.push(Cmd::External(Box::new(read_batch)));
-                }
-
-                cmds.push(cmd);
+                cmds.push(Cmd::External(Box::new(read_batch)));
             }
 
-            (cmds, reads)
-        });
+            cmds.push(cmd);
+        }
 
-    dbg!(&cmds);
-    dbg!(&leftover);
+        (cmds, reads)
+    });
 
     if !leftover.is_empty() {
-        let read_batch = ReadBatch::new(
-            leftover.drain(..).collect(),
-            cmds.drain(..).collect(),
-        );
+        let read_batch = ReadBatch::new(leftover.drain(..).collect(), cmds.drain(..).collect());
 
         cmds.push(Cmd::External(Box::new(read_batch)));
     }
@@ -64,10 +51,9 @@ impl Renderable for ReadBatch {
             self.nested_cmds.iter().map(|cmd| renderer.render_command(cmd, 0)).collect();
         let nested_lines: Vec<&str> = nested_string.lines().collect();
 
-        let read_lines: String = 
+        let read_lines: String =
             self.line_readers.iter().map(|cmd| renderer.render_command(cmd, 0)).collect();
         let read_lines: Vec<&str> = read_lines.lines().collect();
-        dbg!(&read_lines);
 
         let mut context = tera::Context::new();
         context.insert("read_lines", &read_lines);
