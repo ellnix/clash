@@ -11,10 +11,10 @@
 {%- if var.var_type == "String" or var.var_type == "Word" -%}
   {%- set fn = "" -%}
 {%- else -%}
-  {%- set fn = "(map #(" ~ type_tokens[var.var_type] ~ " %) " -%}
+  {%- set fn = "map #(" ~ type_tokens[var.var_type] ~ " %) " -%}
 {%- endif -%}
 
-[{{ idents }}] {{ fn }}{{ clj_split }}
+[{{ idents }}] ({{ fn }}{{ clj_split }})
 {% else -%}
 
 [{{ idents }}] {{ clj_split }}
